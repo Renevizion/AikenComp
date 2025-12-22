@@ -38,7 +38,7 @@ class AikenCompClient {
       throw new Error(`Failed to submit job: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     return data.jobId;
   }
 
@@ -49,7 +49,7 @@ class AikenCompClient {
       throw new Error(`Failed to get job status: ${response.statusText}`);
     }
 
-    return await response.json();
+    return (await response.json()) as JobStatusResponse;
   }
 
   async waitForCompletion(

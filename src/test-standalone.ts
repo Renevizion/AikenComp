@@ -1,5 +1,5 @@
-import { CompilationQueue } from '../queue/CompilationQueue';
-import { CompilationRequest, JobStatus } from '../types';
+import { CompilationQueue } from './queue/CompilationQueue';
+import { CompilationRequest, JobStatus } from './types';
 
 async function testCompilationQueue() {
   console.log('=== Testing Compilation Queue (Standalone Mode) ===\n');
