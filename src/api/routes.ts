@@ -19,11 +19,51 @@ export function createApiRouter(compilationQueue: CompilationQueue): Router {
     try {
       const request: CompilationRequest = req.body;
       
+      // Validate required fields
       if (!request.code) {
         res.status(400).json({
           error: 'Missing required field: code',
         });
         return;
+      }
+      
+      // Validate code length (max 1MB)
+      if (typeof request.code !== 'string' || request.code.length > 1024 * 1024) {
+        res.status(400).json({
+          error: 'Code must be a string with maximum length of 1MB',
+        });
+        return;
+      }
+      
+      // Validate options if provided
+      if (request.options) {
+        if (typeof request.options !== 'object') {
+          res.status(400).json({
+            error: 'Options must be an object',
+          });
+          return;
+        }
+        
+        // Validate individual option types
+        const { optimize, trace, validate } = request.options;
+        if (optimize !== undefined && typeof optimize !== 'boolean') {
+          res.status(400).json({
+            error: 'Option "optimize" must be a boolean',
+          });
+          return;
+        }
+        if (trace !== undefined && typeof trace !== 'boolean') {
+          res.status(400).json({
+            error: 'Option "trace" must be a boolean',
+          });
+          return;
+        }
+        if (validate !== undefined && typeof validate !== 'boolean') {
+          res.status(400).json({
+            error: 'Option "validate" must be a boolean',
+          });
+          return;
+        }
       }
       
       const jobId = await compilationQueue.submitJob(request);

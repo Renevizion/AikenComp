@@ -1,5 +1,6 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { CompilationQueue } from '../queue/CompilationQueue';
 import { createApiRouter } from './routes';
 
@@ -19,12 +20,32 @@ export class ApiServer {
   }
 
   private setupMiddleware(): void {
-    // Body parser
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    // Body parser with reduced limits
+    this.app.use(express.json({ limit: '2mb' }));
+    this.app.use(express.urlencoded({ extended: true, limit: '2mb' }));
     
     // CORS
     this.app.use(cors());
+    
+    // Rate limiting
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // Limit each IP to 100 requests per windowMs
+      message: 'Too many requests from this IP, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    this.app.use('/api/', limiter);
+    
+    // Stricter rate limiting for compilation endpoint
+    const compileLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 20, // Limit each IP to 20 compilation requests per windowMs
+      message: 'Too many compilation requests, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    this.app.use('/api/compile', compileLimiter);
     
     // Request logging
     this.app.use((req: Request, res: Response, next: NextFunction) => {

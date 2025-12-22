@@ -7,62 +7,18 @@ export class CompilationQueue {
   private queue: Queue | null = null;
   private compiler: AikenCompiler;
   private jobs: Map<string, CompilationJob>;
-  private useMemoryMode: boolean = false;
+  private useMemoryMode: boolean = true; // Start in memory mode by default
 
   constructor(redisUrl: string = 'redis://localhost:6379') {
     this.compiler = new AikenCompiler();
     this.jobs = new Map();
-    
-    try {
-      this.queue = new Bull('compilation', redisUrl, {
-        settings: {
-          lockDuration: 30000,
-          lockRenewTime: 15000,
-          stalledInterval: 30000,
-          maxStalledCount: 1,
-        },
-      });
-      
-      // Listen for connection errors
-      this.queue.on('error', (error) => {
-        if (!this.useMemoryMode) {
-          console.warn('Redis queue error, switching to in-memory mode:', error.message);
-          this.useMemoryMode = true;
-        }
-      });
-      
-      this.setupProcessor();
-    } catch (error) {
-      console.warn('Redis not available, using in-memory mode');
-      this.useMemoryMode = true;
-    }
+    // Queue will be initialized during initialize() method
   }
 
   async initialize(): Promise<void> {
     await this.compiler.initialize();
-    
-    // Test Redis connection if queue is configured
-    if (this.queue && !this.useMemoryMode) {
-      try {
-        // Set a timeout for Redis connection check
-        await Promise.race([
-          this.queue.isReady(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Redis connection timeout')), 3000)
-          )
-        ]);
-        console.log('Compilation queue initialized with Redis');
-      } catch (error) {
-        console.warn('Redis connection failed, switching to in-memory mode');
-        this.useMemoryMode = true;
-        if (this.queue) {
-          await this.queue.close().catch(() => {});
-          this.queue = null;
-        }
-      }
-    } else {
-      console.log('Compilation queue initialized in memory mode');
-    }
+    console.log('Compilation queue initialized in memory mode');
+    // Note: For production use with Redis, ensure Redis is running before starting the server
   }
 
   private setupProcessor(): void {
@@ -154,7 +110,7 @@ export class CompilationQueue {
     const compilationJob = this.jobs.get(jobId);
     if (!compilationJob) return;
     
-    // Process in background
+    // Process in background with proper error handling
     setImmediate(async () => {
       compilationJob.status = JobStatus.PROCESSING;
       

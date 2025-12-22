@@ -12,8 +12,8 @@ export class AikenCompiler {
   private stdlibPath: string;
 
   constructor(cacheDir: string = './cache', stdlibPath: string = './stdlib') {
-    this.cacheDir = cacheDir;
-    this.stdlibPath = stdlibPath;
+    this.cacheDir = path.resolve(cacheDir);
+    this.stdlibPath = path.resolve(stdlibPath);
   }
 
   async initialize(): Promise<void> {
@@ -21,9 +21,10 @@ export class AikenCompiler {
     await fs.mkdir(this.cacheDir, { recursive: true });
     await fs.mkdir(this.stdlibPath, { recursive: true });
     
-    // Check if Aiken CLI is available
+    // Check if Aiken CLI is available (cross-platform)
     try {
-      await execAsync('which aiken');
+      const command = process.platform === 'win32' ? 'where aiken' : 'which aiken';
+      await execAsync(command);
     } catch (error) {
       console.warn('Aiken CLI not found in PATH. Using mock compilation mode.');
     }
@@ -103,8 +104,19 @@ source = "github"
     options: CompilationOptions
   ): Promise<{ output: string; artifacts?: CompilationArtifacts; warnings?: string[] }> {
     try {
+      // Validate workDir to prevent command injection
+      const normalizedPath = path.normalize(workDir);
+      const normalizedCacheDir = path.resolve(this.cacheDir);
+      
+      if (!normalizedPath.startsWith(normalizedCacheDir)) {
+        throw new Error('Invalid work directory');
+      }
+      
       // Try to use actual Aiken CLI
-      const buildCommand = `cd ${workDir} && aiken build`;
+      const buildCommand = process.platform === 'win32'
+        ? `cd /d "${normalizedPath}" && aiken build`
+        : `cd "${normalizedPath}" && aiken build`;
+      
       const { stdout, stderr } = await execAsync(buildCommand, {
         timeout: 30000, // 30 second timeout
       });
@@ -114,7 +126,7 @@ source = "github"
       const warnings = this.parseWarnings(output);
       
       // Try to read artifacts
-      const artifacts = await this.readArtifacts(workDir);
+      const artifacts = await this.readArtifacts(normalizedPath);
       
       return {
         output,
@@ -123,7 +135,7 @@ source = "github"
       };
     } catch (error: any) {
       // If Aiken CLI is not available, return mock success
-      if (error.code === 'ENOENT' || error.message.includes('aiken: not found')) {
+      if (error.code === 'ENOENT' || error.message.includes('aiken: not found') || error.message.includes('is not recognized')) {
         return this.mockCompilation();
       }
       throw error;
